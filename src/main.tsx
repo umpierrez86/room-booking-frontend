@@ -5,17 +5,20 @@ import { BrowserRouter } from 'react-router-dom'
 import './styles/index.css'
 import App from './App.tsx'
 import { AuthProvider } from './context/AuthContext.tsx'
+import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 
 const queryClient = new QueryClient()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </AuthProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   </StrictMode>,
 )
