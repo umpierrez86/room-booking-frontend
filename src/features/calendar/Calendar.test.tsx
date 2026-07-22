@@ -26,3 +26,15 @@ test("renders room columns and an occupied block", async () => {
   expect(await screen.findByText("Sprint")).toBeInTheDocument();
   expect(screen.getByText("C")).toBeInTheDocument();
 });
+
+test("renders an error state when the schedule fails to load", async () => {
+  vi.spyOn(api, "getSchedule").mockRejectedValue(new Error("Network down"));
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={qc}>
+      <Calendar date="2026-07-21" />
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByRole("alert")).toBeInTheDocument();
+  expect(screen.getByText(/network down/i)).toBeInTheDocument();
+});
