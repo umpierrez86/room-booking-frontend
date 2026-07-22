@@ -16,3 +16,15 @@ export function toLocalDateString(date: Date = new Date()): string {
 export function todayLocal(): string {
   return toLocalDateString(new Date());
 }
+
+/**
+ * Parses a `YYYY-MM-DD` string into a Date at LOCAL midnight.
+ *
+ * Do not use `new Date(dateString)` for this — that parses the string as
+ * UTC midnight, which shifts to the previous local day in negative UTC
+ * offsets (e.g. Uruguay, UTC-3).
+ */
+export function parseLocalDate(value: string): Date {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
