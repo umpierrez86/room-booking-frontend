@@ -1,4 +1,4 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-body { @apply bg-paper text-ink; font-family: "Helvetica Neue", Arial, sans-serif; }
+body { @apply bg-paper text-ink; font-family: Arial, Helvetica, sans-serif; }

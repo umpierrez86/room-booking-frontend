@@ -11,7 +11,7 @@ test("toggles chat panel", () => {
       </AuthProvider>
     </QueryClientProvider>,
   );
-  const btn = screen.getByRole("button", { name: /ocultar|abrir chat/i });
+  const btn = screen.getByRole("button", { name: /ocultar asistente/i });
   fireEvent.click(btn);
-  expect(screen.getByRole("button", { name: /abrir chat/i })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /abrir asistente/i })).toBeInTheDocument();
 });

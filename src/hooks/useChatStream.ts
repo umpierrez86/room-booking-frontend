@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiBase, Unauthorized } from "../api/client";
 import { parseSSEChunk } from "../api/chat";
@@ -7,6 +7,9 @@ import type { ChatEvent } from "../types/models";
 
 const CHAT_PATH = "/chat";
 const SCHEDULE_QUERY_KEY = "schedule";
+const CHAT_ERROR_MESSAGE = "El asistente no está disponible por el momento. Podés seguir consultando la agenda o volver a intentarlo en unos minutos.";
+const CHAT_SESSION_EXPIRED_MESSAGE = "Tu sesión venció. Volvé a iniciar sesión para continuar.";
+const CHAT_STORAGE_PREFIX = "rb_chat_messages";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -20,6 +23,24 @@ function patchLastMessage(messages: ChatMessage[], patch: (message: ChatMessage)
   return messages.map((message, i) => (i === messages.length - 1 ? patch(message) : message));
 }
 
+function loadMessages(storageKey: string | null): ChatMessage[] {
+  if (!storageKey) return [];
+  try {
+    const stored = localStorage.getItem(storageKey);
+    if (!stored) return [];
+    const parsed: unknown = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (message): message is ChatMessage =>
+        typeof message === "object" && message !== null &&
+        (message.role === "user" || message.role === "assistant") &&
+        typeof message.content === "string" && Array.isArray(message.tools),
+    );
+  } catch {
+    return [];
+  }
+}
+
 /** Applies a single parsed `ChatEvent` to chat state (message patching, schedule invalidation). */
 function applyEvent(event: ChatEvent, setMessages: SetMessages, invalidateSchedule: () => void): void {
   if (event.type === "token") {
@@ -28,7 +49,7 @@ function applyEvent(event: ChatEvent, setMessages: SetMessages, invalidateSchedu
     );
   } else if (event.type === "tool_start") {
     setMessages((current) =>
-      patchLastMessage(current, (message) => ({ ...message, tools: [...message.tools, event.name] })),
+      patchLastMessage(current, (message) => ({ ...message, tools: [...message.tools, event.tool] })),
     );
   } else if (event.type === "booking_changed") {
     invalidateSchedule();
@@ -52,10 +73,19 @@ async function readStream(body: ReadableStream<Uint8Array>, onEvent: (event: Cha
 }
 
 export function useChatStream(date: string) {
-  const { token } = useAuth();
+  const { token, username } = useAuth();
   const queryClient = useQueryClient();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const storageKey = username ? `${CHAT_STORAGE_PREFIX}:${username}` : null;
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages(storageKey));
   const [streaming, setStreaming] = useState(false);
+
+  useEffect(() => {
+    setMessages(loadMessages(storageKey));
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (storageKey) localStorage.setItem(storageKey, JSON.stringify(messages));
+  }, [messages, storageKey]);
 
   function invalidateSchedule() {
     queryClient.invalidateQueries({ queryKey: [SCHEDULE_QUERY_KEY, date] });
@@ -87,6 +117,10 @@ export function useChatStream(date: string) {
       }
 
       await readStream(response.body, (event) => applyEvent(event, setMessages, invalidateSchedule));
+    } catch (error) {
+      const content = error instanceof Unauthorized ? CHAT_SESSION_EXPIRED_MESSAGE : CHAT_ERROR_MESSAGE;
+      setMessages((current) => patchLastMessage(current, (message) => ({ ...message, content })));
+      throw error;
     } finally {
       setStreaming(false);
     }
