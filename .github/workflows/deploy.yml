@@ -1,11 +1,9 @@
 name: deploy
 
-# CD blue-green a Railway para el frontend estático (nginx). Se dispara SOLO si "ci" terminó verde en main.
-# Requiere:
-#   - Secret RAILWAY_TOKEN.
-#   - Secret/var GREEN_URL con la URL pública del servicio "frontend-green".
-#   - Un GitHub Environment "production" con required reviewers → gate manual de promoción.
-# Recordá: VITE_API_URL es build-time; se setea como build arg/variable del servicio frontend-green en Railway.
+# CD a Railway. Solo se dispara cuando CI terminó correctamente sobre main.
+# Requiere RAILWAY_TOKEN (secret), RAILWAY_PROJECT_ID, RAILWAY_ENVIRONMENT,
+# RAILWAY_SERVICE y PRODUCTION_URL (variables del repositorio). VITE_API_URL se
+# configura como variable del servicio Railway.
 on:
   workflow_run:
     workflows: ["ci"]
@@ -17,46 +15,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy-green:
+  deploy:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Railway CLI
-        run: npm i -g @railway/cli
-      - name: Deploy a frontend-green
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service frontend-green --detach
-
-  smoke:
-    needs: deploy-green
-    runs-on: ubuntu-latest
-    steps:
-      - name: Verificar que GREEN sirve la SPA
-        env:
-          GREEN_URL: ${{ secrets.GREEN_URL }}
-        run: |
-          for i in $(seq 1 12); do
-            if curl -fsS "$GREEN_URL/" | grep -qi '<div id="root"'; then
-              echo "green sirviendo la SPA"; exit 0
-            fi
-            echo "esperando a green... ($i)"; sleep 5
-          done
-          echo "GREEN no sirvió la SPA — se aborta el cutover"; exit 1
-
-  promote:
-    needs: smoke
     runs-on: ubuntu-latest
     environment: production
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
       - name: Install Railway CLI
         run: npm i -g @railway/cli
-      - name: Cutover blue -> green
+      - name: Deploy to Railway
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
+          RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT }}
+          RAILWAY_SERVICE: ${{ vars.RAILWAY_SERVICE }}
+        run: railway up --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_ENVIRONMENT" --service "$RAILWAY_SERVICE" --detach
+
+  smoke:
+    needs: deploy
+    # The first deployment creates the service that will later receive its
+    # public domain, so there is no URL to probe until that bootstrap is done.
+    if: ${{ vars.PRODUCTION_URL != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify production serves the SPA
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
         run: |
-          # Reasignar el dominio público de "frontend-blue" a "frontend-green".
-          # NOTA: el swap de dominio depende de la API/CLI de Railway vigente (ver comentario del backend).
-          # Dejar BLUE vivo como rollback y luego decomisionar.
-          echo "Ejecutar swap de dominio frontend-blue -> frontend-green (ver comentario)."
+          for i in $(seq 1 12); do
+            if curl -fsS "$PRODUCTION_URL/" | grep -qi '<div id="root"'; then
+              echo "production serves the SPA"; exit 0
+            fi
+            echo "waiting for production... ($i)"; sleep 5
+          done
+          echo "production did not serve the SPA"; exit 1
