@@ -8,13 +8,16 @@ export function setTokenGetter(fn: () => string | null) {
   tokenGetter = fn;
 }
 
-export async function apiFetch(path: string, opts: RequestInit = {}): Promise<Response> {
-  const token = tokenGetter();
+export async function apiFetch(
+  path: string,
+  opts: RequestInit = {},
+  accessToken: string | null = tokenGetter(),
+): Promise<Response> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(opts.headers as Record<string, string> | undefined),
   };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   const resp = await fetch(`${BASE}${path}`, { ...opts, headers });
   if (resp.status === 401) throw new Unauthorized();
   return resp;
