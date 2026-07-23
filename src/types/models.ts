@@ -9,7 +9,7 @@ export interface DaySchedule { date: string; rooms: RoomSchedule[]; }
 export interface BookingOut { id: string; room: string; date: string; start: string; end: string; title: string; attendees: number; }
 export type ChatEvent =
   | { type: "token"; text: string }
-  | { type: "tool_start"; name: string }
+  | { type: "tool_start"; tool: string; args: Record<string, unknown> }
   | { type: "tool_end" }
   | { type: "booking_changed" }
   | { type: "done" };
