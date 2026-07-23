@@ -57,6 +57,26 @@ test("streaming turns off after a successful stream (try/finally)", async () => 
   vi.unstubAllGlobals();
 });
 
+test("stores the backend tool name from a tool_start event", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: streamOf(['data: {"type":"tool_start","tool":"create_booking","args":{}}\n\n']),
+    }),
+  );
+
+  const { result } = renderHook(() => useChatStream("2026-07-21"), { wrapper });
+
+  await act(async () => {
+    await result.current.sendMessage("Reservá una sala");
+  });
+
+  expect(result.current.messages.at(-1)?.tools).toEqual(["create_booking"]);
+  vi.unstubAllGlobals();
+});
+
 test("streaming turns off even when the response is not ok", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500, body: null }));
 
@@ -67,6 +87,7 @@ test("streaming turns off even when the response is not ok", async () => {
   });
 
   await waitFor(() => expect(result.current.streaming).toBe(false));
+  expect(result.current.messages.at(-1)?.content).toMatch(/no está disponible/i);
 
   vi.unstubAllGlobals();
 });
@@ -93,4 +114,17 @@ test("throws when response.body is null", async () => {
   });
 
   vi.unstubAllGlobals();
+});
+
+test("restores the chat history after a page reload", () => {
+  localStorage.setItem("rb_user", "test-user");
+  localStorage.setItem(
+    "rb_chat_messages:test-user",
+    JSON.stringify([{ role: "assistant", content: "Seguimos desde acá.", tools: [] }]),
+  );
+
+  const { result } = renderHook(() => useChatStream("2026-07-21"), { wrapper });
+
+  expect(result.current.messages).toEqual([{ role: "assistant", content: "Seguimos desde acá.", tools: [] }]);
+  localStorage.clear();
 });
