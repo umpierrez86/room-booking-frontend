@@ -24,29 +24,29 @@ export default function Login() {
 
   return (
     <div className="min-h-screen grid place-items-center">
-      <form onSubmit={submit} className="bg-paper border-3 border-ink shadow-hard2 p-8 w-80 flex flex-col gap-4">
-        <h1 className="text-xl font-black uppercase">Room Booking</h1>
-        <label className="text-xs font-bold uppercase">
+      <form onSubmit={submit} className="bg-paper border-3 border-ink shadow-hard2 p-8 w-[min(92vw,32rem)] flex flex-col gap-6">
+        <h1 className="text-3xl font-black uppercase leading-none">Room Booking</h1>
+        <label className="text-base font-black uppercase">
           Usuario
           <input
             aria-label="usuario"
-            className="mt-1 w-full border-3 border-ink p-2"
+            className="mt-2 w-full border-3 border-ink bg-white px-3 py-2 text-xl font-bold"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
           />
         </label>
-        <label className="text-xs font-bold uppercase">
+        <label className="text-base font-black uppercase">
           Contraseña
           <input
             aria-label="contraseña"
             type="password"
-            className="mt-1 w-full border-3 border-ink p-2"
+            className="mt-2 w-full border-3 border-ink bg-white px-3 py-2 text-xl font-bold"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
         </label>
-        {error && <p className="text-brand-orange text-sm font-bold">{error}</p>}
-        <button className="bg-brand-orange border-3 border-ink shadow-hard font-black uppercase py-2">Entrar</button>
+        {error && <p className="text-brand-orange text-base font-black">{error}</p>}
+        <button className="bg-brand-orange border-3 border-ink shadow-hard font-black uppercase text-xl py-3">Entrar</button>
       </form>
     </div>
   );

@@ -26,11 +26,11 @@ const POPUP_LABEL = "Elegir fecha";
 const PREV_MONTH_LABEL = "Mes anterior";
 const NEXT_MONTH_LABEL = "Mes siguiente";
 
-const TRIGGER_CLASS = "border-3 border-ink shadow-hard bg-paper font-black uppercase px-3 py-1 text-sm";
-const POPUP_CLASS = "absolute right-0 z-10 mt-2 w-64 border-3 border-ink shadow-hard2 bg-paper p-3";
+const TRIGGER_CLASS = "border-3 border-ink shadow-hard bg-paper px-3 py-2 font-mono text-base font-bold";
+const POPUP_CLASS = "absolute right-0 z-10 mt-2 w-72 border-3 border-ink shadow-hard2 bg-paper p-4";
 const NAV_BUTTON_CLASS = "font-black uppercase px-2 hover:opacity-60";
-const WEEKDAY_LABEL_CLASS = "text-[10px] text-center font-mono text-ink/60";
-const DAY_BUTTON_BASE_CLASS = "h-8 w-8 grid place-items-center text-xs font-bold border-3 border-transparent";
+const WEEKDAY_LABEL_CLASS = "text-xs text-center font-black text-ink";
+const DAY_BUTTON_BASE_CLASS = "h-9 w-9 grid place-items-center text-sm font-black border-3 border-transparent";
 const DAY_BUTTON_SELECTED_CLASS = "bg-ink text-paper border-ink";
 const DAY_BUTTON_TODAY_CLASS = "border-brand-blue";
 const DAY_BUTTON_DEFAULT_CLASS = "hover:border-ink";
@@ -120,7 +120,7 @@ export default function DatePicker({ date, onChange }: DatePickerProps) {
         className={TRIGGER_CLASS}
         onClick={() => (open ? setOpen(false) : openPopup())}
       >
-        📅 {formatDisplay(selected)}
+        {formatDisplay(selected)}
       </button>
       {open && (
         <div role="dialog" aria-label={POPUP_LABEL} className={POPUP_CLASS}>
@@ -128,7 +128,7 @@ export default function DatePicker({ date, onChange }: DatePickerProps) {
             <button type="button" aria-label={PREV_MONTH_LABEL} className={NAV_BUTTON_CLASS} onClick={goToPrevMonth}>
               ‹
             </button>
-            <span className="font-black uppercase text-xs">
+            <span className="font-black uppercase text-sm">
               {MONTH_NAMES[viewMonth]} {viewYear}
             </span>
             <button type="button" aria-label={NEXT_MONTH_LABEL} className={NAV_BUTTON_CLASS} onClick={goToNextMonth}>
