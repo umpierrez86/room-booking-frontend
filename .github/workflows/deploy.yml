@@ -2,8 +2,9 @@ name: deploy
 
 # CD a Railway. Solo se dispara cuando CI terminó correctamente sobre main.
 # Requiere RAILWAY_TOKEN (secret), RAILWAY_PROJECT_ID, RAILWAY_ENVIRONMENT,
-# RAILWAY_SERVICE y PRODUCTION_URL (variables del repositorio). VITE_API_URL se
-# configura como variable del servicio Railway.
+# RAILWAY_SERVICE y PRODUCTION_URL (variables del repositorio), además de
+# SMOKE_USERNAME y SMOKE_PASSWORD (secrets). VITE_API_URL se configura como
+# variable del servicio Railway.
 on:
   workflow_run:
     workflows: ["ci"]
@@ -19,6 +20,7 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment: production
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,23 +33,36 @@ jobs:
           RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
           RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT }}
           RAILWAY_SERVICE: ${{ vars.RAILWAY_SERVICE }}
-        run: railway up --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_ENVIRONMENT" --service "$RAILWAY_SERVICE" --detach
+        run: railway up --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_ENVIRONMENT" --service "$RAILWAY_SERVICE"
 
   smoke:
     needs: deploy
-    # The first deployment creates the service that will later receive its
-    # public domain, so there is no URL to probe until that bootstrap is done.
-    if: ${{ vars.PRODUCTION_URL != '' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: Verify production serves the SPA
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify production user journey
         env:
           PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
-        run: |
-          for i in $(seq 1 12); do
-            if curl -fsS "$PRODUCTION_URL/" | grep -qi '<div id="root"'; then
-              echo "production serves the SPA"; exit 0
-            fi
-            echo "waiting for production... ($i)"; sleep 5
-          done
-          echo "production did not serve the SPA"; exit 1
+          SMOKE_USERNAME: ${{ secrets.SMOKE_USERNAME }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+        run: npm run smoke:production
+      - name: Upload Playwright evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-smoke-evidence
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
