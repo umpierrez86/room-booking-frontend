@@ -21,12 +21,30 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 15
+    outputs:
+      previous_deployment_id: ${{ steps.previous_deployment.outputs.id }}
     steps:
+      - name: Validate deployment configuration
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+          SMOKE_USERNAME: ${{ secrets.SMOKE_USERNAME }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+        run: |
+          test -n "$PRODUCTION_URL"
+          test -n "$SMOKE_USERNAME"
+          test -n "$SMOKE_PASSWORD"
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
       - name: Install Railway CLI
         run: npm i -g @railway/cli
+      - name: Record current production deployment
+        id: previous_deployment
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT }}
+          RAILWAY_SERVICE: ${{ vars.RAILWAY_SERVICE }}
+        run: echo "id=$(bash scripts/railway-deployment.sh current)" >> "$GITHUB_OUTPUT"
       - name: Deploy to Railway
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
@@ -38,7 +56,7 @@ jobs:
   smoke:
     needs: deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,13 +69,15 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Verify production user journey
+        id: smoke
+        continue-on-error: true
         env:
           PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
           SMOKE_USERNAME: ${{ secrets.SMOKE_USERNAME }}
           SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
         run: npm run smoke:production
       - name: Upload Playwright evidence
-        if: failure()
+        if: ${{ always() && steps.smoke.outcome == 'failure' }}
         uses: actions/upload-artifact@v4
         with:
           name: production-smoke-evidence
@@ -66,3 +86,26 @@ jobs:
             test-results
           if-no-files-found: ignore
           retention-days: 7
+      - name: Install Railway CLI for rollback
+        if: ${{ steps.smoke.outcome == 'failure' }}
+        run: npm i -g @railway/cli
+      - name: Roll back production
+        if: ${{ steps.smoke.outcome == 'failure' }}
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT }}
+          RAILWAY_SERVICE: ${{ vars.RAILWAY_SERVICE }}
+          PREVIOUS_DEPLOYMENT_ID: ${{ needs.deploy.outputs.previous_deployment_id }}
+        run: bash scripts/railway-deployment.sh rollback "$PREVIOUS_DEPLOYMENT_ID"
+      - name: Verify restored production user journey
+        if: ${{ steps.smoke.outcome == 'failure' }}
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+          SMOKE_USERNAME: ${{ secrets.SMOKE_USERNAME }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+        run: npm run smoke:production
+      - name: Report failed production verification
+        if: ${{ always() && steps.smoke.outcome == 'failure' }}
+        run: |
+          echo "Production smoke failed; rollback was attempted."
+          exit 1
